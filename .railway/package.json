@@ -1,0 +1,9 @@
+{
+  "name": "autoforge-railway",
+  "private": true,
+  "description": "Railway Infrastructure as Code for AutoForge (see railway.ts and docs/runbooks/railway.md)",
+  "type": "module",
+  "devDependencies": {
+    "railway": "3.16.0"
+  }
+}

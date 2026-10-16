@@ -1,0 +1,31 @@
+# Reverse proxy and TLS termination for AutoForge.
+# SITE_ADDRESS: a public DNS name gets an automatic Let's Encrypt certificate; "localhost" uses Caddy's local CA.
+{
+	admin off
+}
+
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# CAD uploads are limited by the API too (AF_MAX_UPLOAD_MB); this is the outer bound.
+	request_body {
+		max_size 210MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# REST API and the realtime WebSocket. /metrics is deliberately not exposed publicly.
+	@api path /api/* /healthz /readyz
+	handle @api {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

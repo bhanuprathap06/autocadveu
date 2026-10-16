@@ -1,0 +1,16 @@
+[project]
+name = "autoforge"
+version = "0.1.0"
+description = "AutoForge Engineering Studio - API, CAD kernel service and simulation workers"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "slow: long-running solver tests",
+  "db: requires PostgreSQL",
+]
+
+[tool.ruff]
+line-length = 130

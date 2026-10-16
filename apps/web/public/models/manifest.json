@@ -1,0 +1,45 @@
+{
+  "kernel": "OCCT via cadquery-ocp 8.0.1.1.0",
+  "models": [
+    {
+      "key": "brake_rotor",
+      "name": "Solid brake rotor (hat type)",
+      "file": "brake_rotor.glb",
+      "bytes": 110532,
+      "sha256": "a2a2c43c1e74273d80b3785810616847fc08cc1da8a287f9df32e0e6a1d9dd95",
+      "volume_mm3": 1986705.495,
+      "features": 4,
+      "parameters": 10
+    },
+    {
+      "key": "control_arm_plate",
+      "name": "Control arm plate (simplified)",
+      "file": "control_arm_plate.glb",
+      "bytes": 38060,
+      "sha256": "a8163615082bf9871ec6393b38a3c875cb885198f2939e2d1347e556ddd688c5",
+      "volume_mm3": 398061.506,
+      "features": 4,
+      "parameters": 5
+    },
+    {
+      "key": "flange_coupling",
+      "name": "Flange coupling half",
+      "file": "flange_coupling.glb",
+      "bytes": 110588,
+      "sha256": "8765cb7ad0721c9863588f3cf69685c3dfb2f055a90e5b3fb7e6d4612a32e42f",
+      "volume_mm3": 245345.82,
+      "features": 7,
+      "parameters": 8
+    },
+    {
+      "key": "battery_enclosure",
+      "name": "Battery module enclosure",
+      "file": "battery_enclosure.glb",
+      "bytes": 27052,
+      "sha256": "903413c3ebf95e98e3060516d4e5b5ca2030eaa8eb80abae01a6a3bf02e2f80a",
+      "volume_mm3": 745389.847,
+      "features": 3,
+      "parameters": 5
+    }
+  ]
+}

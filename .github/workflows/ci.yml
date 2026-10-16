@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
+
+jobs:
+  backend:
+    name: Backend tests (OCCT kernel, CalculiX, Postgres, Redis)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: autoforge, POSTGRES_PASSWORD: autoforge, POSTGRES_DB: autoforge_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U autoforge" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip, cache-dependency-path: services/api/requirements*.txt }
+      - name: System packages (CalculiX 2.21, GL runtime for OCCT/Gmsh)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends calculix-ccx libglu1-mesa libgl1 libxrender1 libxcursor1 libxft2 libxinerama1
+      - run: pip install -r requirements-dev.txt
+      - name: Tests (with Redis, as in production)
+        env:
+          AF_DATABASE_URL: postgresql+psycopg://autoforge:autoforge@localhost:5432/autoforge_test
+          AF_REDIS_URL: redis://localhost:6379/0
+        run: python -m pytest -o addopts= -q
+      - name: Kernel benchmark (recorded, not gated)
+        run: AF_ENV=test python -m autoforge.bench | tee bench.json
+      - name: OpenAPI schema is current
+        run: |
+          AF_ENV=test python scripts/export_openapi.py ../../apps/web/src/api/openapi.json
+          git diff --exit-code -- ../../apps/web/src/api/openapi.json
+      - name: Feature-status doc is current
+        working-directory: .
+        run: python tools/gen_feature_status.py --check
+      - uses: actions/upload-artifact@v4
+        with: { name: kernel-benchmark, path: services/api/bench.json }
+
+  frontend:
+    name: Web typecheck and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci
+      - name: Generated API types match the OpenAPI schema
+        run: npm run gen:api && git diff --exit-code -- src/api/schema.d.ts
+      - run: npm run typecheck
+      - run: npm run build
+
+  images:
+    name: Container images and in-image tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API test image
+        uses: docker/build-push-action@v6
+        with: { context: services/api, target: test, tags: "autoforge-api:test", load: true, cache-from: type=gha, cache-to: "type=gha,mode=max" }
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with: { context: apps/web, tags: "autoforge-web:ci", load: true, cache-from: type=gha, cache-to: "type=gha,mode=max" }
+      - name: Run backend suite inside the API image
+        run: |
+          docker network create ci
+          docker run -d --name pg --network ci -e POSTGRES_USER=autoforge -e POSTGRES_PASSWORD=autoforge -e POSTGRES_DB=autoforge_test postgres:16
+          docker run -d --name redis --network ci redis:7
+          until docker exec pg pg_isready -U autoforge; do sleep 2; done
+          docker run --rm --network ci -e AF_DATABASE_URL=postgresql+psycopg://autoforge:autoforge@pg:5432/autoforge_test \
+            -e AF_REDIS_URL=redis://redis:6379/0 autoforge-api:test
+      - name: Compose file is valid
+        run: |
+          cp .env.example .env.ci && sed -i 's/REQUIRED-change-me/ci-placeholder/' .env.ci
+          docker compose -f infra/docker-compose.yml --env-file .env.ci config --quiet
+
+  e2e:
+    name: End-to-end (Playwright, real stack)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    needs: [backend, frontend]
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: autoforge, POSTGRES_PASSWORD: autoforge, POSTGRES_DB: autoforge }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U autoforge" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      AF_ENV: development
+      AF_DATABASE_URL: postgresql+psycopg://autoforge:autoforge@localhost:5432/autoforge
+      AF_REDIS_URL: redis://localhost:6379/0
+      AF_STORAGE_LOCAL_DIR: /tmp/af-objects
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip, cache-dependency-path: services/api/requirements*.txt }
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends calculix-ccx libglu1-mesa libgl1 libxrender1 libxcursor1 libxft2 libxinerama1
+      - name: Start API and worker
+        working-directory: services/api
+        run: |
+          pip install -r requirements.txt
+          python -m autoforge.cli migrate && python -m autoforge.cli seed
+          nohup uvicorn autoforge.api.main:create_app --factory --port 8000 > /tmp/api.log 2>&1 &
+          nohup python -m autoforge.jobs.worker > /tmp/worker.log 2>&1 &
+          for i in $(seq 60); do curl -fsS localhost:8000/readyz && break; sleep 2; done
+      - name: Build and start web
+        working-directory: apps/web
+        env: { NEXT_PUBLIC_WS_URL: "ws://localhost:8000" }
+        run: |
+          npm ci
+          npm run build
+          nohup npx next start -p 3000 > /tmp/web.log 2>&1 &
+          for i in $(seq 30); do curl -fsS localhost:3000/status >/dev/null && break; sleep 2; done
+      - name: Playwright
+        working-directory: apps/web
+        run: |
+          npx playwright install --with-deps chromium
+          E2E_BASE_URL=http://localhost:3000 npx playwright test
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            /tmp/api.log
+            /tmp/worker.log
+            /tmp/web.log

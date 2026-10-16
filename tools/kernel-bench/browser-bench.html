@@ -1,0 +1,67 @@
+<!doctype html><meta charset="utf-8"><title>ocjs bench</title><pre id="out">running</pre>
+<script type="module">
+import opencascade from "../node_modules/opencascade.js/dist/opencascade.wasm.js";
+const res = { errors: [] };
+const now = () => performance.now();
+const t0 = now();
+const fetchStart = now();
+const wasmResp = await fetch("../node_modules/opencascade.js/dist/opencascade.wasm.wasm");
+const wasmBytes = await wasmResp.arrayBuffer();
+res.wasm_mb = +(wasmBytes.byteLength / 1048576).toFixed(1);
+res.fetch_ms = now() - fetchStart;
+const initStart = now();
+const oc = await new opencascade({ wasmBinary: wasmBytes });
+res.compile_instantiate_ms = now() - initStart;
+const HAS_RANGE = typeof oc.Message_ProgressRange_1 === "function";
+res.occt_api = HAS_RANGE ? ">=7.5 (progress ranges)" : "7.4-era API";
+const R = () => new oc.Message_ProgressRange_1();
+const build = (op) => { if (typeof op.Build === "function") { try { HAS_RANGE ? op.Build(R()) : op.Build(); } catch (e) { /* already built in constructor */ } } };
+const P = (x, y, z) => new oc.gp_Pnt_3(x, y, z);
+const D = (x, y, z) => new oc.gp_Dir_4(x, y, z);
+const cyl = (x, y, z0, r, h) => new oc.BRepPrimAPI_MakeCylinder_3(new oc.gp_Ax2_3(P(x, y, z0), D(0, 0, 1)), r, h).Shape();
+const box = (x, y, z, dx, dy, dz) => new oc.BRepPrimAPI_MakeBox_2(P(x, y, z), dx, dy, dz).Shape();
+const cut = (a, b) => { const op = HAS_RANGE ? new oc.BRepAlgoAPI_Cut_3(a, b, R()) : new oc.BRepAlgoAPI_Cut_3(a, b); build(op); return op.Shape(); };
+const common = (a, b) => { const op = HAS_RANGE ? new oc.BRepAlgoAPI_Common_3(a, b, R()) : new oc.BRepAlgoAPI_Common_3(a, b); build(op); return op.Shape(); };
+const vol = (s) => { const g = new oc.GProp_GProps_1(); oc.BRepGProp.VolumeProperties_1(s, g, false, false, false); return g.Mass(); };
+const compound = (shapes) => { const b = new oc.BRep_Builder(); const c = new oc.TopoDS_Compound(); b.MakeCompound(c); shapes.forEach((s) => b.Add(c, s)); return c; };
+const mesh = (s, defl) => { new oc.BRepMesh_IncrementalMesh_2(s, defl, false, 0.5, false); let n = 0; const ex = new oc.TopExp_Explorer_2(s, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+  for (; ex.More(); ex.Next()) { const loc = new oc.TopLoc_Location_1(); const tri = oc.BRep_Tool.Triangulation(oc.TopoDS.Face_1(ex.Current()), loc); if (!tri.IsNull()) n += tri.get().NbTriangles(); } return n; };
+const stage = (name, fn) => { const a = now(); try { const v = fn(); res[name] = { ms: +(now() - a).toFixed(1), ...(v ?? {}) }; } catch (e) { res.errors.push(`${name}: ${e?.message ?? e}`); } };
+
+stage("small_part", () => {
+  let s = box(0, 0, 0, 120, 60, 8);
+  for (const [x, y] of [[10, 10], [110, 10], [110, 50], [10, 50]]) s = cut(s, cyl(x, y, -1, 3.3, 10));
+  const fil = new oc.BRepFilletAPI_MakeFillet(s, oc.ChFi3d_FilletShape.ChFi3d_Rational);
+  const ex = new oc.TopExp_Explorer_2(s, oc.TopAbs_ShapeEnum.TopAbs_EDGE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+  let k = 0; for (; ex.More() && k < 4; ex.Next()) { const e = oc.TopoDS.Edge_1(ex.Current()); const c = new oc.BRepAdaptor_Curve_2(e); if (c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line) { fil.Add_2(2, e); k++; } }
+  build(fil); s = fil.Shape();
+  const m0 = now(); const tris = mesh(s, 0.1);
+  return { volume_mm3: +vol(s).toFixed(2), tessellate_ms: +(now() - m0).toFixed(1), triangles: tris };
+});
+stage("pattern_part_60_holes", () => {
+  let s = cyl(0, 0, 0, 150, 20);
+  const holes = []; for (let i = 0; i < 60; i++) { const a = (2 * Math.PI * i) / 60; holes.push(cyl(120 * Math.cos(a), 120 * Math.sin(a), -1, 4, 22)); }
+  s = cut(s, compound(holes));
+  const m0 = now(); const tris = mesh(s, 0.1);
+  globalThis.__disc = s;
+  return { volume_mm3: +vol(s).toFixed(2), tessellate_ms: +(now() - m0).toFixed(1), triangles: tris };
+});
+stage("step_export", () => {
+  const w = new oc.STEPControl_Writer_1();
+  if (HAS_RANGE) w.Transfer(globalThis.__disc, oc.STEPControl_StepModelType.STEPControl_AsIs, true, R()); else w.Transfer(globalThis.__disc, oc.STEPControl_StepModelType.STEPControl_AsIs, true);
+  w.Write("disc.step");
+  return { bytes: oc.FS.readFile("/disc.step").length };
+});
+stage("assembly_medium_interference", () => {
+  const boxes = []; for (let i = 0; i < 20; i++) boxes.push(box(i * 15, (i % 3) * 5, 0, 20, 20, 20));
+  let hits = 0, pairs = 0;
+  for (let i = 0; i < 20; i++) for (let j = i + 1; j < 20; j++) { pairs++; if (vol(common(boxes[i], boxes[j])) > 1e-6) hits++; }
+  return { pairs, interfering: hits };
+});
+res.total_ms = now() - t0;
+res.js_heap_mb = performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null;
+res.wasm_memory_mb = oc.HEAP8 ? +(oc.HEAP8.length / 1048576).toFixed(1) : null;
+res.userAgent = navigator.userAgent;
+document.getElementById("out").textContent = JSON.stringify(res, null, 2);
+window.__done = res;
+</script>

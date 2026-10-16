@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-16",
+  "machine": "same Linux x86_64 container for both runs (CPU-only; no GPU involvement in kernel operations)",
+  "geometry_check": "identical volumes and triangle counts in both runs prove the same operations were executed",
+  "browser_wasm": {
+    "engine": "opencascade.js 1.1.1 (OCCT 7.4-era API, Emscripten WASM) in headless Chromium 141",
+    "download_mb": 62.8, "fetch_ms_localhost": 158, "compile_instantiate_ms": 847, "js_heap_mb": 242.2,
+    "small_part_ms": 665.8, "small_part_tessellate_ms": 63.8,
+    "pattern_60_holes_ms": 1928.3, "pattern_60_holes_tessellate_ms": 273.7,
+    "step_export_ms": 310.8, "interference_190_pairs_ms": 3269.8
+  },
+  "server_ocp": {
+    "engine": "OCCT 8.0 via cadquery-ocp 8.0.1.1.0 (CPython 3.13)",
+    "small_part_ms": 26.7, "small_part_tessellate_ms": 5.8,
+    "pattern_60_holes_ms": 196.4, "pattern_60_holes_tessellate_ms": 99.1,
+    "step_export_ms": 21.4, "interference_190_pairs_ms": 145.4, "peak_rss_mb": 302.5
+  },
+  "server_parametric_pipeline": {
+    "note": "python -m autoforge.bench: full feature engine incl. naming, caching and tessellation for the viewer",
+    "small_part_recompute_ms": 58.9, "small_part_tessellate_ms": 46.9, "param_edit_recompute_ms": 45.9,
+    "pattern_60_holes_recompute_ms": 215.1, "step_export_ms": 35.2, "step_import_ms": 152.7,
+    "interference_190_pairs_ms": 102.2, "peak_rss_mb": 352.1
+  }
+}
