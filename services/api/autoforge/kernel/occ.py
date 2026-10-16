@@ -229,3 +229,14 @@ def edge_geometry(edge: Any) -> dict[str, Any]:
 def vertex_point(v: Any) -> list[float]:
     p = st(BRep_Tool, "Pnt")(v)
     return [p.X(), p.Y(), p.Z()]
+
+
+def quiet() -> None:
+    """Silence OCCT's default stdout printers (transfer statistics etc.)."""
+    try:
+        from OCP.Message import Message, Message_Gravity
+
+        for p in st(Message, "DefaultMessenger")().Printers():
+            p.SetTraceLevel(Message_Gravity.Message_Fail)
+    except Exception:  # pragma: no cover - cosmetic only
+        pass
