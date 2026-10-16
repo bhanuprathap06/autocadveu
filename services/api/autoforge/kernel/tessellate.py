@@ -120,8 +120,9 @@ def tessellate_body(body: Body, quality: str = "normal", include_geometry: bool 
         if pl is None:
             continue
         g = occ.edge_geometry(e)
+        geo = {k: g[k] for k in ("center", "axis_dir", "start", "end", "midpoint") if k in g}
         edges_meta.append({"ref": ref, "points": b64(pl.astype(np.float32)), "n": int(len(pl)), "curve": g["curve"],
-                           "length": g["length"], "radius": g.get("radius")})
+                           "length": g["length"], "radius": g.get("radius"), "geometry": geo})
     verts = [occ.vertex_point(v) for v in occ.vertices(body.shape)]
     bb = occ.bbox(body.shape)
     return {

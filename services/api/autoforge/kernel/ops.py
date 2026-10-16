@@ -159,3 +159,17 @@ TEST_OPS = {"_test_sleep": _test_sleep, "_test_crash": _test_crash}
 
 def register(name: str, fn) -> None:
     OPS[name] = fn
+
+
+def _lazy(module: str, name: str):
+    def call(**kwargs: Any) -> Any:
+        import importlib
+
+        return getattr(importlib.import_module(module), name)(**kwargs)
+
+    call.__name__ = name
+    return call
+
+
+for _n in ("assembly_interference", "collision_sweep", "export_assembly"):
+    OPS[_n] = _lazy("autoforge.assembly.kops", _n)

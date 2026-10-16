@@ -393,7 +393,7 @@ def upgrade() -> None:
     sa.Column('cad_document_id', sa.Uuid(), nullable=True),
     sa.Column('cad_content', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('cad_blob_key', sa.String(length=500), nullable=True),
-    sa.Column('cad_format', sa.String(length=16), nullable=True),
+    sa.Column('cad_format', sa.String(length=32), nullable=True),
     sa.Column('spec_source', sa.Text(), nullable=True),
     sa.Column('source_url', sa.String(length=500), nullable=True),
     sa.Column('source_retrieved_at', sa.DateTime(timezone=True), nullable=True),

@@ -416,11 +416,11 @@ def _rank(J: np.ndarray) -> tuple[int, np.ndarray]:
 
 def _redundant(eqs: list[Equation], J: np.ndarray) -> list[str]:
     basis: list[np.ndarray] = []
-    redundant: list[str] = []
+    contributes: dict[str, bool] = {}
     row = 0
     for e in eqs:
         k = len(e.fn(np.zeros(len(e.idx)) + 1.0))  # number of rows (shape only)
-        added = False
+        contributes.setdefault(e.cid, False)
         for rr in J[row:row + k]:
             v = rr.copy()
             nv = np.linalg.norm(v)
@@ -430,11 +430,11 @@ def _redundant(eqs: list[Equation], J: np.ndarray) -> list[str]:
                 v -= (b @ v) * b
             if np.linalg.norm(v) > 1e-7 * nv:
                 basis.append(v / np.linalg.norm(v))
-                added = True
-        if not added and not e.cid.startswith("__"):
-            redundant.append(e.cid)
+                contributes[e.cid] = True
         row += k
-    return sorted(set(redundant), key=redundant.index)
+    # A constraint is redundant only if none of its equations add rank (multi-equation constraints
+    # such as 'fix' on several points are judged as a whole).
+    return [c for c, ok in contributes.items() if not ok and not c.startswith("__")]
 
 
 def solve(

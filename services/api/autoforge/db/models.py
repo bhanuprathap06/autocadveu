@@ -322,7 +322,7 @@ class ComponentCatalogItem(Base):
     cad_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cad_documents.id"))
     cad_content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # parametric generator document for generated geometry
     cad_blob_key: Mapped[str | None] = mapped_column(String(500))
-    cad_format: Mapped[str | None] = mapped_column(String(16))
+    cad_format: Mapped[str | None] = mapped_column(String(32))
     spec_source: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(500))
     source_retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
