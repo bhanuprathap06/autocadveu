@@ -17,7 +17,7 @@ from ..kernel.schema import ID_RE, EdgeRef, Expr, Parameter, Vec3
 
 
 class _M(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_serialization_defaults_required=True)
 
 
 class Placement(_M):

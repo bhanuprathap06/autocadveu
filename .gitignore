@@ -14,3 +14,5 @@ playwright-report/
 test-results/
 coverage/
 .DS_Store
+dump.rdb
+*.tsbuildinfo

@@ -89,3 +89,33 @@ def dev_outbox(to: str | None = None, db: Session = Depends(get_db)) -> dict[str
         stmt = stmt.where(M.EmailOutbox.to_email == to.lower())
     return {"items": [{"to": e.to_email, "subject": e.subject, "body": e.body, "kind": e.kind,
                        "created_at": e.created_at.isoformat()} for e in db.scalars(stmt)]}
+
+
+# ---------------------------------------------------------------- published document schemas
+# These endpoints expose the persistent document models in OpenAPI so the web
+# client's generated TypeScript types match the server's validation exactly.
+from ..assembly.schema import AssemblyDocument  # noqa: E402
+from ..drawing.schema import DrawingContent  # noqa: E402
+from ..kernel.schema import Document as PartDocument  # noqa: E402
+from ..sim.schema import StaticSetup, ThermalSetup  # noqa: E402
+
+
+@router.get("/schemas/part-document", response_model=PartDocument)
+def part_document_schema() -> PartDocument:
+    return PartDocument()
+
+
+@router.get("/schemas/assembly-document", response_model=AssemblyDocument)
+def assembly_document_schema() -> AssemblyDocument:
+    return AssemblyDocument()
+
+
+@router.get("/schemas/drawing", response_model=DrawingContent)
+def drawing_schema() -> DrawingContent:
+    return DrawingContent()
+
+
+@router.get("/schemas/simulation-setup", response_model=StaticSetup | ThermalSetup)
+def simulation_schema() -> dict[str, Any]:
+    return {"analysis": "static", "body": "Body1", "material": {"name": "example", "youngs_modulus_mpa": 200000, "poisson_ratio": 0.3},
+            "supports": [{"faces": ["f1:-x"]}], "loads": [{"type": "force", "faces": ["f1:+x"], "vector_n": [0, 0, -100]}]}

@@ -32,7 +32,7 @@ Vec2 = tuple[float, float]
 
 
 class _M(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_serialization_defaults_required=True)
 
 
 def _check_expr(v: Any) -> Any:
