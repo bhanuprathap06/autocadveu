@@ -173,3 +173,4 @@ def _lazy(module: str, name: str):
 
 for _n in ("assembly_interference", "collision_sweep", "export_assembly"):
     OPS[_n] = _lazy("autoforge.assembly.kops", _n)
+OPS["drawing_views"] = _lazy("autoforge.drawing.kops", "drawing_views")
