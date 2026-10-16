@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # AI (optional; disabled unless a provider is configured)
     ai_provider: Literal["none", "anthropic"] = "none"
     anthropic_api_key: str | None = None
-    ai_model: str = "claude-sonnet-5-5"
+    ai_model: str = "claude-opus-5-5"
 
     # Data retention
     project_retention_days: int = 30

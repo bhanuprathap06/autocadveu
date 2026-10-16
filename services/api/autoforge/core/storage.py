@@ -34,6 +34,7 @@ class Storage(Protocol):
     def get(self, key: str, expected_sha256: str | None = None) -> bytes: ...
     def exists(self, key: str) -> bool: ...
     def delete(self, key: str) -> None: ...
+    def delete_prefix(self, prefix: str) -> int: ...
     def ping(self) -> bool: ...
 
 
@@ -77,6 +78,16 @@ class LocalStorage:
         p = self._path(key)
         if p.exists():
             p.unlink()
+
+    def delete_prefix(self, prefix: str) -> int:
+        import shutil
+
+        base = self._path(prefix.rstrip("/"))
+        if not base.exists():
+            return 0
+        n = sum(1 for p in base.rglob("*") if p.is_file())
+        shutil.rmtree(base)
+        return n
 
     def ping(self) -> bool:
         return self.root.exists()
@@ -133,6 +144,16 @@ class S3Storage:
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=_check_key(key))
+
+    def delete_prefix(self, prefix: str) -> int:
+        _check_key(prefix.rstrip("/"))
+        n = 0
+        for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            keys = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            if keys:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
+                n += len(keys)
+        return n
 
     def ping(self) -> bool:
         try:
