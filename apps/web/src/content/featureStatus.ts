@@ -1,101 +1,13 @@
 /**
- * Feature status matrix shown on /status and mirrored in docs/feature-status.md.
- * Classification follows the project rules: a capability is "implemented_and_verified" only when automated tests
- * exercise it end to end against real engines; anything else says what is missing.
+ * Feature status matrix shown on /status. Single source of truth: feature-status.json, which also generates
+ * docs/feature-status.md (tools/gen_feature_status.py; CI fails if the two drift).
+ * A capability is "implemented_and_verified" only when automated tests exercise it end to end against real engines.
  */
-export type Status = "implemented_and_verified" | "implemented_with_limitations" | "prototype" | "external_integration_required" | "planned";
+import data from "./feature-status.json";
 
+export type Status = "implemented_and_verified" | "implemented_with_limitations" | "prototype" | "external_integration_required" | "planned";
 export interface FeatureRow { area: string; feature: string; status: Status; evidence: string; limits?: string }
 
-export const FEATURES: FeatureRow[] = [
-  // CAD kernel
-  { area: "CAD kernel", feature: "Server-side OCCT B-rep kernel in isolated worker processes", status: "implemented_and_verified",
-    evidence: "Kernel pool tests: crash containment, timeout kill + recovery, structured errors, deterministic recompute.",
-    limits: "Geometry is computed on the server; the browser receives tessellations. No offline modelling." },
-  { area: "CAD kernel", feature: "Parametric feature history with dependency graph, rollback and suppression", status: "implemented_and_verified",
-    evidence: "Forward-reference and parameter-cycle detection; downstream-only recompute; rollback/suppression tests." },
-  { area: "CAD kernel", feature: "Extrude, revolve, hole (simple/counterbore/countersink), fillet, chamfer, shell, booleans, patterns, mirror, primitives",
-    status: "implemented_and_verified", evidence: "Kernel tests check volumes against closed-form values, validity and persistent face names." },
-  { area: "CAD kernel", feature: "Sweep and loft", status: "implemented_with_limitations",
-    evidence: "Roundtrip test sweeps a profile along a sketch path and lofts two sections.",
-    limits: "Single path wire, no guide curves, twist or tangency control." },
-  { area: "CAD kernel", feature: "Persistent topological naming (history-based face names, edge = face pair + hint)", status: "implemented_with_limitations",
-    evidence: "Fillet reference survives upstream dimension changes; unresolvable references produce a re-select error.",
-    limits: "Faces split by later booleans can become ambiguous; the UI flags unstable names." },
-  { area: "Sketching", feature: "2D constraint solver (22 constraint types, DOF, redundancy and conflict isolation)", status: "implemented_and_verified",
-    evidence: "Solver tests: fully/under/over-constrained, conflicts isolated, drag moves only free geometry." },
-  { area: "Sketching", feature: "Profile detection (regions, holes, islands, shared edges, open/crossing detection)", status: "implemented_and_verified",
-    evidence: "Profile tests including arc slots and nested islands." },
-  { area: "Sketching", feature: "Interactive sketch editor (lines, rectangles, circles, arcs, points, splines, constraints, dimensions)", status: "implemented_with_limitations",
-    evidence: "Uses the server solver for every edit; status, DOF and conflicts shown live.",
-    limits: "No trim/extend/offset tools yet; ellipse drawing is API-only." },
-  { area: "Data exchange", feature: "STEP AP214, IGES, BREP export with re-import volume verification", status: "implemented_and_verified",
-    evidence: "Exports are re-read and the volume compared (rel. error < 1e-4) before download." },
-  { area: "Data exchange", feature: "STL, OBJ, glTF (GLB) mesh export", status: "implemented_and_verified", evidence: "Roundtrip test parses written meshes." },
-  { area: "Data exchange", feature: "STEP/IGES/BREP import with healing and diagnostics", status: "implemented_with_limitations",
-    evidence: "Import tests reject garbage and mesh formats; imported solids become editable bases.",
-    limits: "Imported solids carry no feature history; DXF, Parasolid and native CAD formats are not supported." },
-  { area: "Data exchange", feature: "AutoForge native document (full parametric history, checksum)", status: "implemented_and_verified",
-    evidence: "Native export/import round trip with SHA-256 check." },
-  // Assemblies
-  { area: "Assemblies", feature: "Mates (fixed, coincident, concentric, parallel, perpendicular, distance, angle, revolute, slider) with DOF reporting",
-    status: "implemented_and_verified", evidence: "Revolute leaves one DOF; conflicting and redundant mates are isolated." },
-  { area: "Assemblies", feature: "Exact B-rep interference and clearance checks", status: "implemented_and_verified",
-    evidence: "Common-volume interference with bounding-box prefilter; measured with BRepExtrema." },
-  { area: "Assemblies", feature: "Quasi-static kinematic sweeps with collision checks", status: "implemented_with_limitations",
-    evidence: "Sweep test checks limits and collisions per step.",
-    limits: "Positions only; velocity/acceleration by finite differences; no dynamics, forces or contact." },
-  { area: "Assemblies", feature: "Exploded views and bill of materials", status: "implemented_and_verified",
-    evidence: "BOM mass from CAD volume × assigned density or cited catalog data; missing masses are flagged." },
-  // Catalog
-  { area: "Component library", feature: "Searchable catalog with provenance, licences and completeness", status: "implemented_and_verified",
-    evidence: "Seed data is generated from standards (ISO 15, ISO 4762, ISO 4032, ISO 7089, cell formats) with manufacturer values left blank.",
-    limits: "No manufacturer datasets are bundled; organisations import their own records with sources." },
-  { area: "Component library", feature: "Side-by-side comparison with unit normalisation", status: "implemented_and_verified",
-    evidence: "Missing values are reported as missing, never inferred; the tool never declares parts interchangeable." },
-  // Simulation
-  { area: "Simulation", feature: "Linear static FEA (CalculiX, C3D10 tetrahedra via Gmsh)", status: "implemented_and_verified",
-    evidence: "Cantilever benchmark within 0.5 % of Timoshenko; equilibrium check on every run; mesh-convergence study.",
-    limits: "Linear elastic, small deformation, single body; no contact, no bolt preload." },
-  { area: "Simulation", feature: "Steady-state thermal (CalculiX)", status: "implemented_and_verified",
-    evidence: "Flux and convection benchmarks match analytical temperatures exactly." },
-  { area: "Simulation", feature: "Durable job queue with cancellation, timeouts and crash recovery", status: "implemented_and_verified",
-    evidence: "Queue tests cover timeout, crash, failure, cancel and stale-job recovery." },
-  { area: "Simulation", feature: "CFD (external aerodynamics, coolant flow)", status: "external_integration_required",
-    evidence: "No CFD solver is bundled. Results are never simulated or estimated in its place.",
-    limits: "Requires an OpenFOAM (or similar) adapter and compute infrastructure." },
-  { area: "Simulation", feature: "Modal, buckling, fatigue, nonlinear and transient analyses", status: "planned", evidence: "Not implemented." },
-  // Drawings
-  { area: "Drawings", feature: "Associative 2D drawings (HLR projections, auto dimensions, hole callouts, title block, revision table)", status: "implemented_and_verified",
-    evidence: "Drawing tests render views from the model, detect stale drawings and export PDF/DXF/SVG." },
-  { area: "Drawings", feature: "GD&T feature control frames and datums (ISO 1101 / ASME Y14.5 rule checks)", status: "implemented_with_limitations",
-    evidence: "Invalid frames block export; rule tests cover datum requirements and modifiers.",
-    limits: "Rules check structure only; they do not verify that a tolerance is functionally appropriate." },
-  // Engineering
-  { area: "Engineering calculators", feature: "Shaft, gear, spring, beam, thermal, battery pack, ISO 286 fits, tolerance stack, unit conversion",
-    status: "implemented_and_verified", evidence: "Calculator tests compare with closed-form results and ISO 286 table values." },
-  { area: "AI assistant", feature: "Requirement extraction, concept generation and validated CAD proposals", status: "implemented_with_limitations",
-    evidence: "Schema-validated structured outputs; every claim is classified; proposals compile through the parametric builder before use.",
-    limits: "Default provider is a deterministic rules engine; Claude is used only when configured and the user consents per request." },
-  // Collaboration & platform
-  { area: "Collaboration", feature: "Private rooms, single-use email-bound invitations, roles, comments, presence", status: "implemented_and_verified",
-    evidence: "Invitation lifecycle, comment permissions and WebSocket origin/auth tests." },
-  { area: "Collaboration", feature: "Immutable revisions with optimistic concurrency, idempotent saves, diff and restore", status: "implemented_and_verified",
-    evidence: "Conflicts return 409 with the head revision; restores create new revisions." },
-  { area: "Collaboration", feature: "Real-time co-editing of the same feature tree", status: "planned",
-    evidence: "Concurrent edits are detected and resolved explicitly (reload, overwrite or save a copy); there is no live merge." },
-  { area: "Security", feature: "Argon2id passwords, server sessions, CSRF, TOTP MFA, rate limits, IDOR-safe authorisation, audit log", status: "implemented_and_verified",
-    evidence: "Auth, CSRF, MFA, rate-limit and cross-project access tests." },
-  { area: "Security", feature: "Malware scanning of uploads", status: "external_integration_required",
-    evidence: "Uploads are type-checked and content-sniffed; files are marked “not scanned” until a ClamAV integration is configured." },
-  { area: "Platform", feature: "Postgres persistence, S3-compatible storage, Redis events, Prometheus metrics, health/readiness", status: "implemented_and_verified",
-    evidence: "Restart-survival, readiness and metrics tests." },
-];
-
-export const STATUS_HELP: Record<Status, string> = {
-  implemented_and_verified: "Works end to end and is covered by automated tests against the real engine.",
-  implemented_with_limitations: "Works, with the stated limits.",
-  prototype: "Exploratory; not for engineering decisions.",
-  external_integration_required: "Needs an external service or solver that is not bundled. Nothing is simulated in its place.",
-  planned: "Not available yet.",
-};
+export const FEATURES = data.features as FeatureRow[];
+export const STATUS_HELP = data.statusHelp as Record<Status, string>;
+export const STATUS_UPDATED = data.updated;

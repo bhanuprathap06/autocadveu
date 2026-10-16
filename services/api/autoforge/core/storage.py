@@ -106,8 +106,19 @@ class S3Storage:
             region_name=s.s3_region,
             aws_access_key_id=s.s3_access_key_id,
             aws_secret_access_key=s.s3_secret_access_key,
-            config=Config(retries={"max_attempts": 5, "mode": "standard"}, signature_version="s3v4"),
+            config=Config(retries={"max_attempts": 5, "mode": "standard"}, signature_version="s3v4",
+                          # Self-hosted S3-compatible stores are addressed by path (bucket in the URL path).
+                          s3={"addressing_style": "path" if s.s3_endpoint_url else "auto"}),
         )
+
+    def ensure_bucket(self) -> bool:
+        """Create the bucket if it does not exist (idempotent). Returns True when it was created."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+            return False
+        except Exception:
+            self.client.create_bucket(Bucket=self.bucket)
+            return True
 
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> str:
         import base64

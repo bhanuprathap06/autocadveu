@@ -1,0 +1,151 @@
+# AutoForge Engineering Studio: complete self-hosted stack.
+#
+#   cp .env.example .env    # then set every value marked REQUIRED
+#   docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+#
+# Services: Caddy (TLS) -> web (Next.js) + api (FastAPI) ; worker (simulation jobs, email) ;
+# Postgres 16, Redis 7, SeaweedFS (S3-compatible object storage). Optional: Mailpit (profile "local-mail").
+name: autoforge
+
+x-api-env: &api-env
+  AF_ENV: ${AF_ENV:-production}
+  AF_DATABASE_URL: postgresql+psycopg://autoforge:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/autoforge
+  AF_REDIS_URL: redis://redis:6379/0
+  AF_STORAGE_BACKEND: s3
+  AF_S3_ENDPOINT_URL: http://objects:8333
+  AF_S3_BUCKET: ${S3_BUCKET:-autoforge}
+  AF_S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+  AF_S3_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+  AF_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
+  AF_ALLOWED_ORIGINS: '["${PUBLIC_BASE_URL:-https://localhost}"]'
+  AF_COOKIE_SECURE: "true"
+  AF_TRUST_PROXY_HEADERS: "true"
+  AF_SMTP_HOST: ${SMTP_HOST:-}
+  AF_SMTP_PORT: ${SMTP_PORT:-587}
+  AF_SMTP_USER: ${SMTP_USER:-}
+  AF_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  AF_SMTP_FROM: ${SMTP_FROM:-AutoForge <no-reply@autoforge.local>}
+  AF_SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  AF_AI_PROVIDER: ${AI_PROVIDER:-none}
+  AF_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  AF_KERNEL_WORKERS: ${KERNEL_WORKERS:-2}
+  AF_MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+
+services:
+  postgres:
+    image: mirror.gcr.io/library/postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autoforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: autoforge
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoforge -d autoforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: mirror.gcr.io/library/redis:7-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  objects:
+    # SeaweedFS (Apache-2.0) single-node server with its S3 gateway. Replace with any S3-compatible service or AWS S3
+    # by changing AF_S3_ENDPOINT_URL and credentials.
+    image: mirror.gcr.io/chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '{"identities":[{"name":"autoforge","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}'
+        "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json &&
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=1024 -volume.max=0
+    volumes: [objectdata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  migrate:
+    image: autoforge-api:${AUTOFORGE_VERSION:-local}
+    build: { context: ../services/api, target: runtime }
+    environment: *api-env
+    command: ["sh", "-c", "python -m autoforge.cli migrate && python -m autoforge.cli ensure-bucket && python -m autoforge.cli seed"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      objects: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: autoforge-api:${AUTOFORGE_VERSION:-local}
+    build: { context: ../services/api, target: runtime }
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    image: autoforge-api:${AUTOFORGE_VERSION:-local}
+    build: { context: ../services/api, target: runtime }
+    restart: unless-stopped
+    environment: *api-env
+    command: ["python", "-m", "autoforge.jobs.worker"]
+    healthcheck:
+      # The worker has no HTTP port; check that the worker process is alive.
+      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0 if any(b'autoforge.jobs.worker' in open(f'/proc/{p}/cmdline','rb').read() for p in os.listdir('/proc') if p.isdigit()) else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    # Simulations are memory-hungry; each job also enforces AF_SIM_MEMORY_MB and a wall-clock limit.
+    deploy:
+      resources:
+        limits: { memory: 8g }
+
+  web:
+    image: autoforge-web:${AUTOFORGE_VERSION:-local}
+    build:
+      context: ../apps/web
+      args: { AF_API_URL: "http://api:8000" }
+    restart: unless-stopped
+    depends_on: [api]
+
+  proxy:
+    image: mirror.gcr.io/library/caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web, api]
+
+  mail:
+    # Local mail capture for evaluation only (web UI on MAILPIT_PORT). Never use in production.
+    image: mirror.gcr.io/axllent/mailpit:v1.27
+    profiles: ["local-mail"]
+    ports: ["127.0.0.1:${MAILPIT_PORT:-8025}:8025"]
+
+volumes:
+  pgdata:
+  redisdata:
+  objectdata:
+  caddydata:

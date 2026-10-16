@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str = "AutoForge <no-reply@autoforge.local>"
+    # STARTTLS is required for real mail servers; disable only for a local capture sink (e.g. Mailpit in docker compose).
+    smtp_starttls: bool = True
 
     # AI (optional; disabled unless a provider is configured)
     ai_provider: Literal["none", "anthropic"] = "none"

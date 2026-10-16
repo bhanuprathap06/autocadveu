@@ -8,6 +8,7 @@ remain in the outbox and are visible in the admin console / dev endpoint.
 from __future__ import annotations
 
 import smtplib
+import ssl
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -40,7 +41,8 @@ def deliver_pending(db: Session, limit: int = 20) -> int:
             msg["Subject"] = row.subject
             msg.set_content(row.body)
             with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=15) as smtp:
-                smtp.starttls()
+                if s.smtp_starttls:
+                    smtp.starttls(context=ssl.create_default_context())
                 if s.smtp_user:
                     smtp.login(s.smtp_user, s.smtp_password or "")
                 smtp.send_message(msg)

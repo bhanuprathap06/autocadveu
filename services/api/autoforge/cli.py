@@ -1,6 +1,7 @@
 """Operations CLI.
 
   python -m autoforge.cli migrate            # alembic upgrade head
+  python -m autoforge.cli ensure-bucket      # create the S3 bucket if missing (S3-compatible stores)
   python -m autoforge.cli seed               # reference data (materials, licences, standard catalog)
   python -m autoforge.cli seed-demo          # demo account + sample projects (refused in production)
   python -m autoforge.cli create-admin EMAIL # grant administrator role to an existing user
@@ -24,6 +25,17 @@ def migrate() -> None:
     cfg = Config(os.path.join(here, "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(here, "migrations"))
     command.upgrade(cfg, "head")
+
+
+def ensure_bucket() -> None:
+    from .core.config import get_settings
+    from .core.storage import get_storage
+
+    if get_settings().storage_backend != "s3":
+        print("local storage backend: nothing to do")
+        return
+    created = get_storage().ensure_bucket()  # type: ignore[attr-defined]
+    print("bucket created" if created else "bucket exists")
 
 
 def seed() -> None:
@@ -126,6 +138,8 @@ def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "migrate":
         migrate()
+    elif cmd == "ensure-bucket":
+        ensure_bucket()
     elif cmd == "seed":
         seed()
     elif cmd == "seed-demo":

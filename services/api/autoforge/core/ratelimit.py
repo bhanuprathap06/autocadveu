@@ -45,8 +45,17 @@ def _mem_hit(key: str, window_s: int) -> int:
 
 
 def reset() -> None:
+    """Clear all counters (in-memory and Redis). Used by tests and operational resets."""
     with _lock:
         _mem.clear()
+    r = _redis_client()
+    if r is not None:
+        try:
+            keys = list(r.scan_iter(match="af:rl:*", count=1000))
+            if keys:
+                r.delete(*keys)
+        except Exception:
+            pass
 
 
 def login_limit() -> int:
