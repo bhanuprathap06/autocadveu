@@ -108,7 +108,7 @@ class S3Storage:
             aws_secret_access_key=s.s3_secret_access_key,
             config=Config(retries={"max_attempts": 5, "mode": "standard"}, signature_version="s3v4",
                           # Self-hosted S3-compatible stores are addressed by path (bucket in the URL path).
-                          s3={"addressing_style": "path" if s.s3_endpoint_url else "auto"}),
+                          s3={"addressing_style": s.s3_addressing_style or ("path" if s.s3_endpoint_url else "auto")}),
         )
 
     def ensure_bucket(self) -> bool:

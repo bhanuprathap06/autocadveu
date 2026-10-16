@@ -30,6 +30,9 @@ http://127.0.0.1:8025. Run `./start.sh` again whenever you want to start it (aft
 changed); `./start.sh stop` stops it and keeps your data; `./start.sh logs` follows the logs. Keep `.env`: it holds
 the passwords for your data.
 
+Hosted on Railway (managed, free `*.up.railway.app` HTTPS address, paid Hobby plan): follow
+[docs/runbooks/railway.md](docs/runbooks/railway.md). The whole project is described in `.railway/railway.ts`.
+
 Production-like stack (TLS, S3 storage, SMTP):
 
     cp .env.example .env        # fill in the REQUIRED values

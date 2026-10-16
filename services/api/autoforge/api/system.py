@@ -74,7 +74,7 @@ def status() -> dict[str, Any]:
         "kernel": kernel_version(),
         "solvers": {"calculix": ccx_version()},
         "ai": {"provider": s.ai_provider, "configured": s.ai_provider != "none" and bool(s.anthropic_api_key)},
-        "smtp_configured": bool(s.smtp_host),
+        "smtp_configured": s.mail_configured,
         "malware_scanning": "external integration required (not configured)",
     }
 

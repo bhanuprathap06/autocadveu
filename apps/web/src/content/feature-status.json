@@ -229,6 +229,13 @@
    "feature": "Backup and restore (Postgres dump + checksummed object archive + integrity verification)",
    "status": "implemented_and_verified",
    "evidence": "Drill: back up, destroy all volumes, restore into a fresh stack; state fingerprint identical, integrity check and a fresh verified export pass."
+  },
+  {
+   "area": "Platform",
+   "feature": "Railway deployment (one-file Infrastructure as Code: Postgres, Redis, Storage Bucket, API, worker, web)",
+   "status": "implemented_with_limitations",
+   "evidence": "The project file typechecks against the Railway SDK and compiles to the intended resources; the Playwright suite (including the realtime WebSocket) passes in a local Railway-like topology where only the web service is exposed.",
+   "limits": "Not yet applied on a live Railway project; virtual-hosted bucket addressing and IPv6 private networking are exercised only by unit tests here. Outbound SMTP is blocked on Railway's Hobby plan, so email needs a Resend key."
   }
  ]
 }

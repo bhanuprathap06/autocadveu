@@ -5,7 +5,7 @@ _Generated from `apps/web/src/content/feature-status.json` (updated 2026-10-16).
 | Status | Meaning | Count |
 |---|---|---|
 | Implemented and verified | Works end to end and is covered by automated tests against the real engine. | 24 |
-| Implemented with limitations | Works, with the stated limits. | 7 |
+| Implemented with limitations | Works, with the stated limits. | 8 |
 | Prototype | Exploratory; not for engineering decisions. | 0 |
 | External integration required | Needs an external service or solver that is not bundled. Nothing is simulated in its place. | 2 |
 | Planned | Not available yet. | 2 |
@@ -104,3 +104,4 @@ _Generated from `apps/web/src/content/feature-status.json` (updated 2026-10-16).
 | Postgres persistence, S3-compatible storage, Redis events, Prometheus metrics, health/readiness | Implemented and verified | Restart-survival, readiness and metrics tests. |  |
 | Container images and docker compose deployment (Caddy TLS, Postgres, Redis, S3-compatible storage, SMTP) | Implemented and verified | The Playwright acceptance suite passes against the production-mode compose stack; the backend suite passes inside the API image against Postgres and Redis containers. | Single-host topology; horizontal scaling of API and workers is supported by design but not load-tested. |
 | Backup and restore (Postgres dump + checksummed object archive + integrity verification) | Implemented and verified | Drill: back up, destroy all volumes, restore into a fresh stack; state fingerprint identical, integrity check and a fresh verified export pass. |  |
+| Railway deployment (one-file Infrastructure as Code: Postgres, Redis, Storage Bucket, API, worker, web) | Implemented with limitations | The project file typechecks against the Railway SDK and compiles to the intended resources; the Playwright suite (including the realtime WebSocket) passes in a local Railway-like topology where only the web service is exposed. | Not yet applied on a live Railway project; virtual-hosted bucket addressing and IPv6 private networking are exercised only by unit tests here. Outbound SMTP is blocked on Railway's Hobby plan, so email needs a Resend key. |

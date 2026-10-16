@@ -5,6 +5,7 @@
   python -m autoforge.cli seed               # reference data (materials, licences, standard catalog)
   python -m autoforge.cli seed-demo          # demo account + sample projects (refused in production)
   python -m autoforge.cli create-admin EMAIL # grant administrator role to an existing user
+  python -m autoforge.cli verify-user EMAIL  # mark a user's email as verified (operator check done out of band)
   python -m autoforge.cli purge              # apply retention policy (soft-deleted projects, old audit events)
 """
 
@@ -112,6 +113,21 @@ def create_admin(email: str) -> None:
         print(f"{email} is now an administrator")
 
 
+def verify_user(email: str) -> None:
+    from .core import audit
+    from .db import models as M
+    from .db.session import session_scope
+
+    with session_scope() as db:
+        u = db.scalar(select(M.User).where(M.User.email == email.lower()))
+        if u is None:
+            sys.exit(f"No user {email}")
+        if u.email_verified_at is None:
+            u.email_verified_at = datetime.now(timezone.utc)
+            audit.record(db, "user.email_verified", u, details={"by": "operator-cli"})
+        print(f"{email} is verified")
+
+
 def purge() -> None:
     from .core.config import get_settings
     from .db import models as M
@@ -146,6 +162,8 @@ def main() -> None:
         seed_demo()
     elif cmd == "create-admin" and len(sys.argv) == 3:
         create_admin(sys.argv[2])
+    elif cmd == "verify-user" and len(sys.argv) == 3:
+        verify_user(sys.argv[2])
     elif cmd == "purge":
         purge()
     else:

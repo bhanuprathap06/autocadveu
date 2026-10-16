@@ -46,6 +46,22 @@ test("create a project from a parametric template; kernel builds the model", asy
   await expect(page.getByRole("tree", { name: "Feature history" })).toContainText("Bracket body");
 });
 
+test("realtime channel connects through the public web origin", async () => {
+  // Hosted layouts (e.g. Railway) expose only the web server, which must forward the WebSocket upgrade to the API.
+  const doc = await (await page.request.get(`/api/v1/documents/${docPath.split("/").pop()}`)).json();
+  const hello = await page.evaluate(async (projectId) => {
+    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/v1/ws?project_id=${projectId}`;
+    return await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const ws = new WebSocket(url);
+      const timer = setTimeout(() => reject(new Error("no hello within 10 s")), 10_000);
+      ws.onmessage = (ev) => { clearTimeout(timer); ws.close(); resolve(JSON.parse(ev.data)); };
+      ws.onerror = () => { clearTimeout(timer); reject(new Error("websocket error")); };
+    });
+  }, doc.document.project_id);
+  expect(hello.type).toBe("hello");
+  expect((hello.you as { name: string }).name).toBe(owner.name);
+});
+
 test("pick a face and measure it with the exact B-rep", async () => {
   const canvas = page.locator("section[aria-label='3D viewport'] canvas");
   const box = (await canvas.boundingBox())!;

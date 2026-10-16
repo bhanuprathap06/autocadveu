@@ -10,7 +10,7 @@
 # The CA is used only while building and is not left in the image.
 ARG BASE_IMAGE=mirror.gcr.io/library/ubuntu:24.04
 
-FROM ${BASE_IMAGE} AS runtime
+FROM ${BASE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 VIRTUAL_ENV=/opt/venv PATH=/opt/venv/bin:$PATH
 # OCCT (OCP wheels) and Gmsh load a few X/GL runtime libraries even when headless.
@@ -41,11 +41,12 @@ ENV AF_STORAGE_LOCAL_DIR=/data/objects TMPDIR=/tmp/autoforge
 USER autoforge
 EXPOSE 8000
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["uvicorn", "autoforge.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-server-header"]
+# Dual-stack (IPv4 + IPv6) listener on $PORT (default 8000); see autoforge/serve.py.
+CMD ["python", "-m", "autoforge.serve"]
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
 # Test image: runtime + dev dependencies + tests. CI runs the suite in it against real Postgres/Redis containers.
-FROM runtime AS test
+FROM base AS test
 USER root
 COPY requirements-dev.txt ./
 RUN --mount=type=secret,id=extra_ca,required=false \
@@ -55,3 +56,6 @@ RUN --mount=type=secret,id=extra_ca,required=false \
 COPY tests ./tests
 USER autoforge
 CMD ["python", "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider"]
+
+# Production image. Kept as the last stage so builders that use the final stage (e.g. Railway) get it by default.
+FROM base AS runtime

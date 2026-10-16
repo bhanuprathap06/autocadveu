@@ -33,7 +33,7 @@ export default function StatusPage() {
               <dt>Geometry kernel</dt><dd>{live.data.kernel}</dd>
               <dt>CalculiX</dt><dd>{live.data.solvers.calculix ?? "not installed — simulations will fail with a clear error"}</dd>
               <dt>AI provider</dt><dd>{live.data.ai.configured ? `${live.data.ai.provider} (external, per-request consent)` : "built-in rules engine (no external AI configured)"}</dd>
-              <dt>Email delivery</dt><dd>{live.data.smtp_configured ? "SMTP configured" : "development outbox only"}</dd>
+              <dt>Email delivery</dt><dd>{live.data.smtp_configured ? "configured" : "development outbox only"}</dd>
               <dt>Malware scanning</dt><dd>{live.data.malware_scanning}</dd>
               <dt>Environment</dt><dd>{live.data.env}</dd>
             </dl>

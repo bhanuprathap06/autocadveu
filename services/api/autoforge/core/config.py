@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     s3_bucket: str = "autoforge"
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    # "path" puts the bucket in the URL path (self-hosted stores); "virtual" in the host name (Railway buckets, AWS).
+    # Unset: path style for a custom endpoint, automatic for AWS.
+    s3_addressing_style: Literal["auto", "path", "virtual"] | None = None
 
     # HTTP / security
     public_base_url: str = "http://localhost:3000"
@@ -44,7 +47,9 @@ class Settings(BaseSettings):
     sim_max_mesh_nodes: int = 400_000
     ccx_binary: str = "ccx"
 
-    # Email (transactional outbox). Without SMTP, messages stay in the outbox.
+    # Email (transactional outbox), delivered over SMTP or the Resend HTTPS API (for hosts that block SMTP,
+    # e.g. Railway's Hobby plan). Without either, messages stay in the outbox (admin console).
+    resend_api_key: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
@@ -75,6 +80,10 @@ class Settings(BaseSettings):
             if self.storage_backend != "s3":
                 raise ValueError("Production requires S3-compatible object storage")
         return self
+
+    @property
+    def mail_configured(self) -> bool:
+        return bool(self.resend_api_key or self.smtp_host)
 
     @property
     def is_dev(self) -> bool:
