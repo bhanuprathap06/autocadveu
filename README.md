@@ -20,6 +20,16 @@ solver or service (for example CFD) are labelled as such and never simulated. Se
 
 ## Run it
 
+Quick start on your own computer (needs only [Docker](https://docs.docker.com/get-docker/) and git):
+
+    git clone https://github.com/bhanuprathap06/autocadveu.git && cd autocadveu
+    ./start.sh          # first run builds the images (~10 min) and creates .env with random secrets
+
+Then open https://localhost (accept the local certificate warning). Verification emails appear at
+http://127.0.0.1:8025. Run `./start.sh` again whenever you want to start it (after `git pull` it rebuilds what
+changed); `./start.sh stop` stops it and keeps your data; `./start.sh logs` follows the logs. Keep `.env`: it holds
+the passwords for your data.
+
 Production-like stack (TLS, S3 storage, SMTP):
 
     cp .env.example .env        # fill in the REQUIRED values
